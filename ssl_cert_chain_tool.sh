@@ -7,6 +7,7 @@ ALGORITHM="SM2"  # Options: SM2, RSA, ECC
 TONGSUO_BIN_PATH="/usr/local/tongsuo/bin"
 LD_LIBRARY_PATH_OVERRIDE="/usr/local/tongsuo/lib"
 UNENCRYPTED_KEYS=false  # Default: private keys are encrypted
+COMMONNAME="test.example.com"
 
 # Help function
 show_help() {
@@ -19,6 +20,7 @@ Options:
   -o OUTPUT_DIR        Specify output directory for certificates (default: certs)
   -t TONGSUO_BIN_PATH  Specify the Tongsuo binary path (default: /usr/local/tongsuo/bin)
   -l LD_LIBRARY_PATH   Specify the LD_LIBRARY_PATH for dynamic libraries (default: /usr/local/tongsuo/lib)
+  -n COMMON NAME       Specify Common Name
   -u                   Generate unencrypted private keys
   -h                   Show this help message
 
@@ -35,14 +37,15 @@ EOF
 }
 
 # Parse input parameters
-while getopts "p:a:o:t:l:uh" opt; do
+while getopts "p:a:o:t:l:uhn:" opt; do
     case "${opt}" in
         p) PASSWORD="${OPTARG}" ;;
         a) ALGORITHM="${OPTARG}" ;;
         o) WORKDIR="${OPTARG}" ;;
         t) TONGSUO_BIN_PATH="${OPTARG}" ;;
         l) LD_LIBRARY_PATH_OVERRIDE="${OPTARG}" ;;
-        u) UNENCRYPTED_KEYS=true ;;
+        n) COMMONNAME="${OPTARG}";;
+        u) UNENCRYPTED_KEYS=false ;;
         h) show_help; exit 0 ;;
         *) echo "Invalid option. Use -h for help." && exit 1 ;;
     esac
@@ -117,7 +120,7 @@ stateOrProvinceName             = State or Province Name
 localityName                    = Locality Name
 0.organizationName              = Organization Name
 organizationalUnitName          = Organizational Unit Name
-commonName                      = Common Name
+commonName                      = $COMMONNAME
 emailAddress                    = Email Address
 
 countryName_default             = CN
@@ -182,7 +185,7 @@ $TOOL x509 -req -days 1825 -in "$WORKDIR/intermediate.csr" -CA "$CA_CERT" -CAkey
 echo "Generating Server Signing Certificate..."
 generate_private_key "$SERVER_KEY"
 $TOOL req -new -key "$SERVER_KEY" -out "$WORKDIR/server.csr" -passin pass:"$PASSWORD" \
-    -subj "/C=CN/O=TestOrg/CN=test.example.com" || exit 1
+    -subj "/C=CN/O=TestOrg/CN=$COMMONNAME" || exit 1
 $TOOL x509 -req -days 365 -in "$WORKDIR/server.csr" -CA "$INTERMEDIATE_CERT" -CAkey "$INTERMEDIATE_KEY" \
     -CAcreateserial -out "$SERVER_CERT" -passin pass:"$PASSWORD" \
     -extfile "$CONFIG_FILE" -extensions v3_server_cert || exit 1
@@ -192,7 +195,7 @@ if [[ "$ALGORITHM" == "SM2" ]]; then
     echo "Generating Server Encryption Certificate..."
     generate_private_key "$SERVER_ENC_KEY"
     $TOOL req -new -key "$SERVER_ENC_KEY" -out "$WORKDIR/server_enc.csr" -passin pass:"$PASSWORD" \
-        -subj "/C=CN/O=TestOrg/CN=test.example.com" || exit 1
+        -subj "/C=CN/O=TestOrg/CN=$COMMONNAME" || exit 1
     $TOOL x509 -req -days 365 -in "$WORKDIR/server_enc.csr" -CA "$INTERMEDIATE_CERT" -CAkey "$INTERMEDIATE_KEY" \
         -CAcreateserial -out "$SERVER_ENC_CERT" -passin pass:"$PASSWORD" \
         -extfile "$CONFIG_FILE" -extensions v3_server_enc_cert || exit 1
